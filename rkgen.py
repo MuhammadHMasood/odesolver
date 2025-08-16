@@ -1,10 +1,13 @@
-from solver import enforce_1d, is_strictly_lower_triangular_and_sbys, ODEFunc, np, npt
+import numpy as np
+import numpy.typing as npt
+
+from solver import enforce_1d, is_strictly_lower_triangular, ODEFunc
 
 
 def ExplicitRK_method_generator(A_matrix, b_vector):
     b_vector = enforce_1d(b_vector)
     stage = len(b_vector)
-    if not is_strictly_lower_triangular_and_sbys(A_matrix, stage):
+    if not is_strictly_lower_triangular(A_matrix, stage):
         raise ValueError("A has wrong shape")
 
     def RK_method(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
@@ -59,40 +62,5 @@ def ExplicitRK_method_generator(A_matrix, b_vector):
             K[i, :] = f(Y_Stages[i, :])
 
         return y_k + h * b @ K
-
-    return RK_method
-
-
-def ExplicitRK_method_generator_1d(A_matrix, b_vector):
-    b_vector = enforce_1d(b_vector)
-    stages = len(b_vector)
-    if not is_strictly_lower_triangular_and_sbys(A_matrix, stages):
-        raise ValueError("A has wrong shape")
-
-    def RK_method(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
-
-        # dim is the dimension of our vector ODE, i.e. it's the number of equations
-        # stages is the number of stages for our RK method
-
-        b = b_vector
-        A = A_matrix
-
-        assert y_k.shape == (1,)
-
-        Y_Stages = np.zeros(stages)
-
-        K = np.zeros(stages)
-        # Now K is just a vector that we want to be [f(Y1), f(Y2), f(Y3), ...]
-
-        for i in range(stages):
-            Y_Stages[i] = y_k[0] + h * np.dot(A[i, :i], K[:i])
-            # note that since A is lower triangular, dotting A[i, :i], K[:i] basically only dots the entries that could be nonzero
-            # doing it this way also means that we are basically saying
-            # "I know that future stages of Y_i won't be present since this is an explicit method"
-            # So hence when I'm computing Y_i I don't need to compute or add f(Y_j), for j>=i
-            # So we will only add the values of f(Y_j) for j < i, scaled by the corresponding A coefficients
-            K[i] = f(Y_Stages[i])
-
-        return y_k + h * np.dot(b, K)
 
     return RK_method
