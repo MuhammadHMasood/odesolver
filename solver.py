@@ -1,27 +1,27 @@
 from typing import Protocol
+
 import numpy as np
 import numpy.typing as npt
 
 
-def enforce_1d(x):
-    """Ensure input is a 1D numpy array."""
-    x = np.asarray(x)
-    if x.ndim == 0:
-        return x[np.newaxis]
-    elif x.ndim == 1:
-        return x
-    elif x.ndim == 2:
-        if x.shape[0] == 1 or x.shape[1] == 1:
-            return x.ravel()
-    raise ValueError(f"Expected scalar or 1D array, got shape {x.shape}")
+def enforce_1d(x: npt.ArrayLike) -> npt.NDArray:
+    """Return *x* as a contiguous 1‑D array."""
+    arr = np.asarray(x)
+    if arr.ndim == 0:
+        return arr[np.newaxis]
+    if arr.ndim == 1:
+        return arr
+    if arr.ndim == 2 and (arr.shape[0] == 1 or arr.shape[1] == 1):
+        return arr.ravel()
+    raise ValueError(f"Expected scalar or 1D array, got shape {arr.shape}")
 
 
-def is_strictly_lower_triangular_and_sbys(A, s):
-    """Check if A is strictly lower triangular and square of size s."""
-    A = np.asarray(A)
-    if A.shape != (s, s):
+def is_strictly_lower_triangular(A: npt.ArrayLike, size: int) -> bool:
+    """Return True if *A* is a strictly lower triangular square matrix."""
+    mat = np.asarray(A)
+    if mat.shape != (size, size):
         return False
-    return np.allclose(A, np.tril(A, k=-1))
+    return np.allclose(mat, np.tril(mat, k=-1))
 
 
 class ODEFunc(Protocol):

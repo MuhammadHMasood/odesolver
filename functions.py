@@ -1,6 +1,6 @@
-from solver import np, npt
-
-from numpy import sin, cos
+import numpy as np
+import numpy.typing as npt
+from numpy import cos, sin
 
 
 def f_exponential_system(y) -> npt.NDArray:
@@ -21,9 +21,9 @@ def f_logistic(y) -> npt.NDArray:
     return y * (1 - y)
 
 
-a = 2  # pendulum length [m]
-m = 1  # mass [kg]
-g = 10  # gravitational acceleration [m/s^2]
+a = 2.0  # pendulum length [m]
+m = 1.0  # mass [kg]
+g = 10.0  # gravitational acceleration [m/s^2]
 
 
 def f_double_pendulum_v0(y) -> npt.NDArray:
@@ -74,11 +74,6 @@ def f_double_pendulum_v0(y) -> npt.NDArray:
     result[0] = 1
 
     return result
-
-
-a = 2.0
-g = 10.0
-
 
 def f_double_pendulum_v1(y) -> npt.NDArray:
     """State y = [t, theta=C, phi=D, theta_dot=A, phi_dot=B]
