@@ -36,7 +36,7 @@ def f_double_pendulum_v0(y) -> npt.NDArray:
         npt.NDArray: f(y) = [1, theta dot, phi dot, theta double dot, phi double dot]
     """
     # Theta dot = A, Phi dot = B, Theta = C, Phi = D
-    t = y[0]
+    # t = y[0]
     C = y[1]
     D = y[2]
     A = y[3]
@@ -74,6 +74,7 @@ def f_double_pendulum_v0(y) -> npt.NDArray:
     result[0] = 1
 
     return result
+
 
 def f_double_pendulum_v1(y) -> npt.NDArray:
     """State y = [t, theta=C, phi=D, theta_dot=A, phi_dot=B]

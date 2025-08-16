@@ -49,4 +49,4 @@ def double_pendulum_sanity_check():
 
 if __name__ == "__main__":
     main()
-    double_pendulum_sanity_check()
+    # double_pendulum_sanity_check()
