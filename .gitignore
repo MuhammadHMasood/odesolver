@@ -15,6 +15,7 @@ env/
 *~
 *.bak
 backup.py
+testground.py
 
 # VSCode / IDE settings
 .vscode/
