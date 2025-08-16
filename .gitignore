@@ -1,0 +1,34 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS metadata
+.DS_Store
+
+# Backup or temp files
+*~
+*.bak
+backup.py
+
+# VSCode / IDE settings
+.vscode/
+.idea/
+
+# Build / distribution artifacts
+*.egg-info/
+dist/
+build/
+
+# Keep lock file in version control
+!uv.lock
+
+# Keep .python-version in version control
+!.python-version
+
+
