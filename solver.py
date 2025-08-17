@@ -49,3 +49,16 @@ def ODESolve(
     for i in range(Nsteps):
         y_n[i + 1, :] = method(y_n[i, :], h, f)
     return y_n
+
+
+def ODESolve_oneiter(
+    h: np.floating,
+    y0,
+    f: ODEFunc,
+    method: OneStepNumericalMethod,
+) -> npt.NDArray:
+    """
+    Solve ODE using a one-step numerical method.
+    Returns array of shape (1, dim).
+    """
+    return method(y0, h, f)
