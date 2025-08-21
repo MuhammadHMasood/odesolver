@@ -2,7 +2,7 @@ import numpy as np
 import numpy.typing as npt
 
 from solver import ODEFunc
-from rkgen import ExplicitRK_method_generator
+from explicit_rkgen import ExplicitRK_method_generator
 from grapher import solve_and_plot
 from functions import f_exponential, f_double_pendulum_v0, f_double_pendulum_v1
 
