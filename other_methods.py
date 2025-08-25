@@ -198,6 +198,21 @@ def implicit_midpoint_1d(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
 # y_n+1 = y_n + h * f(Y_1)
 
 
+# Trivially generalize to any a11 and b1 value (any 1-stage implicit r-k method)
+def Implicit_1Stage_RK_method_generator(a11, b1, tolerance=1e-5, maxiters=100):
+    def implicit_1stage_nd_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        y_k = enforce_1d(y_k)
+
+        def g(x):
+            return (h) * a11 * f(x) + y_k - x
+
+        Y_1 = newtons_method_approxnd(g, y_k, tolerance, maxiters)
+
+        return y_k + h * b1 * f(Y_1)
+
+    return implicit_1stage_nd_rk
+
+
 # Stage 1 gauss legendre nd
 def implicit_midpoint(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
     y_k = enforce_1d(y_k)
@@ -208,8 +223,6 @@ def implicit_midpoint(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
     Y_1 = newtons_method_approxnd(g, y_k)
 
     return y_k + h * f(Y_1)
-
-    pass
 
 
 def newtons_method_approxnd(the_function, initial_guess, tolerance=1e-5, maxiters=100):
