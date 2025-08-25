@@ -212,6 +212,37 @@ def implicit_midpoint(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
     pass
 
 
+def newtons_method_approxnd(the_function, initial_guess, tolerance=1e-5, maxiters=100):
+
+    xn = enforce_1d(initial_guess)
+    dim = len(xn)
+    thefunc = the_function(xn)
+    iters = 0
+    while np.linalg.norm(thefunc) >= tolerance and iters < maxiters:
+        iters += 1
+        Jac = np.zeros((dim, dim))
+        s = (10 ** (-8)) * (
+            1 + np.abs(xn)
+        )  # abs is componentwise so this computes a step size for each element of xn
+
+        # now we compute all the columns of Jac
+
+        # Each column J[:,i] = del f / del xi (xn) ~= f(xn + s * e_i) - f(x) / s
+        for i in range(dim):
+            e_i = np.zeros(dim)
+            e_i[i] = s[i]
+            the_deriv = (the_function(xn + e_i) - thefunc) / s[i]
+            Jac[:, i] = the_deriv
+
+        # solve J(x_n) @ (x-x_n) = -f(x_n) to get (x-xn), so x = xn + (x-xn)
+        # with (x-xn) = solution to J(x_n) @ v = -f(x_n)
+        deltax = np.linalg.solve(Jac, -thefunc)
+        xn = xn + deltax
+
+        thefunc = the_function(xn)
+    return xn
+
+
 def newtons_method_exact1d(the_function, the_derivative, iterations, initial_guess):
     # f(x) ~= f(x0) + f'(x0) (x-x0) -> zero at f(x0) + f'(x0) (x-x0) = 0 -> x = x0 - f(x0)/f'(x0)
     xn = initial_guess
@@ -221,11 +252,12 @@ def newtons_method_exact1d(the_function, the_derivative, iterations, initial_gue
 
 
 def newtons_method_approx1d(the_function, initial_guess, tolerance=1e-5, maxiters=100):
+    assert initial_guess.shape == (1,)
     # f(x) ~= f(x0) + f'(x0) (x-x0) -> zero at f(x0) + f'(x0) (x-x0) = 0 -> x = x0 - f(x0)/f'(x0)
     xn = initial_guess
     thefunc = the_function(xn)
     iters = 0
-    while np.abs(thefunc) >= tolerance and iters < maxiters:
+    while np.abs(thefunc)[0] >= tolerance and iters < maxiters:
         iters += 1
         s = (10 ** (-8)) * (1 + np.abs(xn))
         thederiv = (the_function(xn + s) - thefunc) / s
