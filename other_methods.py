@@ -50,7 +50,7 @@ def implicit_midpoint_1d(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
     def g(x):
         return (h / 2) * f(x) + y_k - x
 
-    Y_1 = newtons_method_approx1d(g, 1e-5, y_k)
+    Y_1 = newtons_method_approx1d(g, y_k)
 
     return y_k + h * f(Y_1)
 
@@ -198,16 +198,16 @@ def implicit_midpoint_1d(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
 # y_n+1 = y_n + h * f(Y_1)
 
 
-# Stage 1 gauss legendre
+# Stage 1 gauss legendre nd
 def implicit_midpoint(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
     y_k = enforce_1d(y_k)
 
     def g(x):
         return (h / 2) * f(x) + y_k - x
 
-    # Y_1 = newtons_method_approx(g, 1e-5, y_k)
+    Y_1 = newtons_method_approxnd(g, y_k)
 
-    # return y_k + h * f(Y_1)
+    return y_k + h * f(Y_1)
 
     pass
 
