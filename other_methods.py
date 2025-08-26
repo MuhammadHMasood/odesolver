@@ -4,6 +4,60 @@ import numpy.typing as npt
 from solver import ODEFunc, enforce_1d
 
 
+def newtons_method_approxnd(the_function, initial_guess, tolerance=1e-5, maxiters=100):
+
+    xn = enforce_1d(initial_guess)
+    dim = len(xn)
+    thefunc = the_function(xn)
+    iters = 0
+    while np.linalg.norm(thefunc) >= tolerance and iters < maxiters:
+        iters += 1
+        Jac = np.zeros((dim, dim))
+        s = (10 ** (-8)) * (
+            1 + np.abs(xn)
+        )  # abs is componentwise so this computes a step size for each element of xn
+
+        # now we compute all the columns of Jac
+
+        # Each column J[:,i] = del f / del xi (xn) ~= f(xn + s * e_i) - f(x) / s
+        for i in range(dim):
+            e_i = np.zeros(dim)
+            e_i[i] = s[i]
+            the_deriv = (the_function(xn + e_i) - thefunc) / s[i]
+            Jac[:, i] = the_deriv
+
+        # solve J(x_n) @ (x-x_n) = -f(x_n) to get (x-xn), so x = xn + (x-xn)
+        # with (x-xn) = solution to J(x_n) @ v = -f(x_n)
+        deltax = np.linalg.solve(Jac, -thefunc)
+        xn = xn + deltax
+
+        thefunc = the_function(xn)
+    return xn
+
+
+def newtons_method_exact1d(the_function, the_derivative, iterations, initial_guess):
+    # f(x) ~= f(x0) + f'(x0) (x-x0) -> zero at f(x0) + f'(x0) (x-x0) = 0 -> x = x0 - f(x0)/f'(x0)
+    xn = initial_guess
+    for i in range(iterations):
+        xn = xn - the_function(xn) / the_derivative(xn)
+    return xn
+
+
+def newtons_method_approx1d(the_function, initial_guess, tolerance=1e-5, maxiters=100):
+    assert initial_guess.shape == (1,)
+    # f(x) ~= f(x0) + f'(x0) (x-x0) -> zero at f(x0) + f'(x0) (x-x0) = 0 -> x = x0 - f(x0)/f'(x0)
+    xn = initial_guess
+    thefunc = the_function(xn)
+    iters = 0
+    while np.abs(thefunc)[0] >= tolerance and iters < maxiters:
+        iters += 1
+        s = (10 ** (-8)) * (1 + np.abs(xn))
+        thederiv = (the_function(xn + s) - thefunc) / s
+        xn = xn - thefunc / thederiv
+        thefunc = the_function(xn)
+    return xn
+
+
 # supposing 1 stage 1-d implicit method we have
 
 # dy/dt = f(y)
@@ -225,55 +279,72 @@ def implicit_midpoint(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
     return y_k + h * f(Y_1)
 
 
-def newtons_method_approxnd(the_function, initial_guess, tolerance=1e-5, maxiters=100):
+# Now onto 2 stage 1 d
 
-    xn = enforce_1d(initial_guess)
-    dim = len(xn)
-    thefunc = the_function(xn)
-    iters = 0
-    while np.linalg.norm(thefunc) >= tolerance and iters < maxiters:
-        iters += 1
-        Jac = np.zeros((dim, dim))
-        s = (10 ** (-8)) * (
-            1 + np.abs(xn)
-        )  # abs is componentwise so this computes a step size for each element of xn
+# Now we have
 
-        # now we compute all the columns of Jac
+# Y_1 = yn + a11 * h * f(Y_1) + a12 * h * f(Y_2)
+# Y_2 = yn + a21 * h * f(Y_1) + a22 * h * f(Y_2)
 
-        # Each column J[:,i] = del f / del xi (xn) ~= f(xn + s * e_i) - f(x) / s
-        for i in range(dim):
-            e_i = np.zeros(dim)
-            e_i[i] = s[i]
-            the_deriv = (the_function(xn + e_i) - thefunc) / s[i]
-            Jac[:, i] = the_deriv
+#
 
-        # solve J(x_n) @ (x-x_n) = -f(x_n) to get (x-xn), so x = xn + (x-xn)
-        # with (x-xn) = solution to J(x_n) @ v = -f(x_n)
-        deltax = np.linalg.solve(Jac, -thefunc)
-        xn = xn + deltax
+# IF WE DEFINE THE K VECTOR AS K = [f(Y_1), f(Y_2)]^T AND THE Y VECTOR AS Y = [Y_1, Y_2]^T,
+# yn = [yn, yn]^T and A as the A matrix
 
-        thefunc = the_function(xn)
-    return xn
+# THEN WE CAN WRITE THIS AS
 
+# h * A@f(Y) + yn - Y = 0
 
-def newtons_method_exact1d(the_function, the_derivative, iterations, initial_guess):
-    # f(x) ~= f(x0) + f'(x0) (x-x0) -> zero at f(x0) + f'(x0) (x-x0) = 0 -> x = x0 - f(x0)/f'(x0)
-    xn = initial_guess
-    for i in range(iterations):
-        xn = xn - the_function(xn) / the_derivative(xn)
-    return xn
+# g(Y) =  h * A@f(Y) + yn - Y
+
+# g(Y) = 0
+
+# to find Y
+
+# or in K form we have
+
+#  K = f(Y), and Y = yn + h * A@K
+
+#  so
+
+#  K = f(h * A@K + yn)
+
+#  so
+
+#  g(K) =  f(h * A@K + yn) - K
+
+#  g(K) = 0 to find K
 
 
-def newtons_method_approx1d(the_function, initial_guess, tolerance=1e-5, maxiters=100):
-    assert initial_guess.shape == (1,)
-    # f(x) ~= f(x0) + f'(x0) (x-x0) -> zero at f(x0) + f'(x0) (x-x0) = 0 -> x = x0 - f(x0)/f'(x0)
-    xn = initial_guess
-    thefunc = the_function(xn)
-    iters = 0
-    while np.abs(thefunc)[0] >= tolerance and iters < maxiters:
-        iters += 1
-        s = (10 ** (-8)) * (1 + np.abs(xn))
-        thederiv = (the_function(xn + s) - thefunc) / s
-        xn = xn - thefunc / thederiv
-        thefunc = the_function(xn)
-    return xn
+def Implicit_2Stage_RK_method_generator(
+    A_matrix, b_vector, tolerance=1e-5, maxiters=100
+):
+    b_vec = enforce_1d(b_vector)
+    assert len(b_vector) == 2
+    assert A_matrix.shape == (2, 2)
+
+    def implicit_2stage_1d_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        assert y_k.shape == (1,)
+
+        # this is a 1-d problem so we have to redefine yn (y_k) and f to be 2d
+        yn1 = np.full(2, y_k)
+
+        # redefine f to a vector function acting on both stages values
+        # This is kind of sloppy because in theory f accepts shape (1,) and outputs shape (1,)
+        # but practically 1-d F will generally be define in a way that it works on scalars and (1,) equally
+        def f_vec(x):
+            return np.array([f(x[0]), f(x[1])])
+
+        # We want to find Y = [Y_1, Y_2]^T
+        # Y form
+        # Y = yn + h A @ f(Y)
+        # g(Y) =  h * A@f(Y) + yn - Y
+        # Remember y_k and f are 1-d
+        def g(x):
+            return h * A_matrix @ f_vec(x) + yn1 - x
+
+        Y = newtons_method_approxnd(g, yn1, tolerance, maxiters)
+
+        return y_k + h * b_vec.T @ f_vec(Y)
+
+    return implicit_2stage_1d_rk
