@@ -348,3 +348,84 @@ def Implicit_2Stage_RK_method_generator(
         return y_k + h * b_vec.T @ f_vec(Y)
 
     return implicit_2stage_1d_rk
+
+
+# We make use of the semianalytical evaluation of the Jacobian for g
+# recall g(Y) =  h * A@f(Y) + yn - Y
+# J_g = h * A @ J_f - I, where I is the identity matrix
+# But recall f(Y) = [f(Y1), f(Y2)]
+# so the J_f matrix is:
+# [D1 f1(Y1), D2 f1(Y1)]
+# [D1 f2(Y1), D2 f2(Y1)]
+# but since f1 is only a function of Y1,
+# and f2 only a func of Y2, then D1 f2 = D2 f1 = 0
+# leaving [D1 f1, 0] [0, D2 f2] and D1 f1 = f'(y1), and D2 f2 = f'(y2)
+# leaving
+# [f'(y1), 0]
+# [0, f'(y2)]
+def newtons_method_approx_ns1drk_opt(
+    A_matrix, h, the_function, initial_guess, tolerance=1e-5, maxiters=100, yn=None
+):
+    xn = enforce_1d(initial_guess)
+    # Usually our initial guess is yn
+    if yn is None:
+        yn = xn.copy()
+    stages = len(xn)  # dim is the number of stages now
+    thefunc = np.array([the_function(xn[i]) for i in range(stages)])
+    the_g = h * A_matrix @ thefunc + yn - xn
+    iters = 0
+    while np.linalg.norm(the_g) >= tolerance and iters < maxiters:
+        iters += 1
+        Jac_f = np.zeros((stages, stages))
+        s = (10 ** (-8)) * (
+            1 + np.abs(xn)
+        )  # abs is componentwise so this computes a step size for each element of xn
+        # the initial guesses are all yn (1d) but then they change so we will do it componentwise
+
+        # now we compute all the columns of Jac_f which is simply Jac_f_ik = delta_ik (f'(yi))
+
+        # Each diagonal element J[i,i] = f'(yi) ~= f(yi + s[i]) - f(yi) / s
+        for i in range(stages):
+            the_deriv = (the_function(xn[i] + s[i]) - thefunc[i]) / s[i]
+            Jac_f[i, i] = the_deriv
+
+        # solve J_g(x_n) @ (x-x_n) = -g(x_n) to get (x-xn), so x = xn + (x-xn)
+        # with (x-xn) = solution to J_g(x_n) @ v = -g(x_n)
+        Jac = h * A_matrix @ Jac_f - np.identity(stages)
+
+        deltax = np.linalg.solve(Jac, -the_g)
+        xn = xn + deltax
+        thefunc = np.array([the_function(xn[i]) for i in range(stages)])
+        the_g = h * A_matrix @ thefunc + yn - xn
+    return xn
+
+
+def Implicit_2Stage_RK_method_generator_semianalytical(
+    A_matrix, b_vector, tolerance=1e-5, maxiters=100
+):
+    b_vec = enforce_1d(b_vector)
+    assert len(b_vector) == 2
+    assert A_matrix.shape == (2, 2)
+
+    def implicit_2stage_1d_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        assert y_k.shape == (1,)
+
+        # this is a 1-d problem so we have to redefine yn (y_k) and f to be 2d
+        yn1 = np.array([y_k.item(), y_k.item()])
+
+        # redefine f to a vector function acting on both stages values
+        # This is kind of sloppy because in theory f accepts shape (1,) and outputs shape (1,)
+        # but practically 1-d F will generally be define in a way that it works on scalars and (1,) equally
+        def f_vec(x):
+            return np.array([f(x[0]), f(x[1])])
+
+        # We want to find Y = [Y_1, Y_2]^T
+        # Y form
+        # Y = yn + h A @ f(Y)
+        # g(Y) =  h * A@f(Y) + yn - Y
+
+        Y = newtons_method_approx_ns1drk_opt(A_matrix, h, f, yn1, tolerance, maxiters)
+
+        return y_k + h * b_vec.T @ f_vec(Y)
+
+    return implicit_2stage_1d_rk
