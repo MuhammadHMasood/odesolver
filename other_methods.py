@@ -252,6 +252,58 @@ def implicit_midpoint_1d(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
 # y_n+1 = y_n + h * f(Y_1)
 
 
+def newtons_method_approxnd_1snd_opt(
+    h, a11, the_function, initial_guess, tolerance=1e-5, maxiters=100, y_k=None
+):
+
+    xn = enforce_1d(initial_guess)
+    if y_k is None:
+        y_k = xn.copy()
+    dim = len(xn)
+    thefunc = the_function(xn)
+    the_g = h * a11 * thefunc + y_k - xn
+    iters = 0
+    while np.linalg.norm(the_g) >= tolerance and iters < maxiters:
+        iters += 1
+        Jac_f = np.zeros((dim, dim))
+        s = (10 ** (-8)) * (
+            1 + np.abs(xn)
+        )  # abs is componentwise so this computes a step size for each element of xn
+
+        # now we compute all the columns of Jac
+
+        # Each column J[:,i] = del f / del xi (xn) ~= f(xn + s * e_i) - f(x) / s
+        for i in range(dim):
+            e_i = np.zeros(dim)
+            e_i[i] = s[i]
+            the_deriv = (the_function(xn + e_i) - thefunc) / s[i]
+            Jac_f[:, i] = the_deriv
+
+        Jac = h * a11 * Jac_f - np.identity(dim)
+        # solve J(x_n) @ (x-x_n) = -f(x_n) to get (x-xn), so x = xn + (x-xn)
+        # with (x-xn) = solution to J(x_n) @ v = -f(x_n)
+        deltax = np.linalg.solve(Jac, -the_g)
+        xn = xn + deltax
+
+        thefunc = the_function(xn)
+        the_g = h * a11 * thefunc + y_k - xn
+    return xn
+
+
+# Trivially generalize to any a11 and b1 value (any 1-stage implicit r-k method)
+def Implicit_1Stage_RK_method_generator_semianalytical(
+    a11, b1, tolerance=1e-5, maxiters=100
+):
+    def implicit_1stage_nd_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        y_k = enforce_1d(y_k)
+
+        Y_1 = newtons_method_approxnd_1snd_opt(h, a11, f, y_k, tolerance, maxiters)
+
+        return y_k + h * b1 * f(Y_1)
+
+    return implicit_1stage_nd_rk
+
+
 # Trivially generalize to any a11 and b1 value (any 1-stage implicit r-k method)
 def Implicit_1Stage_RK_method_generator(a11, b1, tolerance=1e-5, maxiters=100):
     def implicit_1stage_nd_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
@@ -400,7 +452,7 @@ def newtons_method_approx_ns1drk_opt(
     return xn
 
 
-def Implicit_2Stage_RK_method_generator_semianalytical(
+def Implicit_2Stage_1d_RK_method_generator_semianalytical(
     A_matrix, b_vector, tolerance=1e-5, maxiters=100
 ):
     b_vec = enforce_1d(b_vector)
@@ -429,3 +481,35 @@ def Implicit_2Stage_RK_method_generator_semianalytical(
         return y_k + h * b_vec.T @ f_vec(Y)
 
     return implicit_2stage_1d_rk
+
+
+def Implicit_nStage_1d_RK_method_generator_semianalytical(
+    A_matrix, b_vector, tolerance=1e-5, maxiters=100
+):
+
+    b_vec = enforce_1d(b_vector)
+    stages = len(b_vector)
+    assert A_matrix.shape == (stages, stages)
+
+    def implicit_nstage_1d_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        assert y_k.shape == (1,)
+
+        # this is a 1-d problem so we have to redefine yn (y_k) and f to be 2d
+        yn1 = np.tile(y_k.item(), stages)
+
+        # redefine f to a vector function acting on both stages values
+        # This is kind of sloppy because in theory f accepts shape (1,) and outputs shape (1,)
+        # but practically 1-d F will generally be define in a way that it works on scalars and (1,) equally
+        def f_vec(x):
+            return np.array([f(x[i]) for i in range(stages)])
+
+        # We want to find Y = [Y_1, Y_2]^T
+        # Y form
+        # Y = yn + h A @ f(Y)
+        # g(Y) =  h * A@f(Y) + yn - Y
+
+        Y = newtons_method_approx_ns1drk_opt(A_matrix, h, f, yn1, tolerance, maxiters)
+
+        return y_k + h * b_vec.T @ f_vec(Y)
+
+    return implicit_nstage_1d_rk
