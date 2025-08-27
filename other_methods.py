@@ -513,3 +513,207 @@ def Implicit_nStage_1d_RK_method_generator_semianalytical(
         return y_k + h * b_vec.T @ f_vec(Y)
 
     return implicit_nstage_1d_rk
+
+
+# def Implicit_1Stage_RK_method_generator(a11, b1, tolerance=1e-5, maxiters=100):
+#     def implicit_1stage_nd_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+#         y_k = enforce_1d(y_k)
+
+#         def g(x):
+#             return (h) * a11 * f(x) + y_k - x
+
+#         Y_1 = newtons_method_approxnd(g, y_k, tolerance, maxiters)
+
+#         return y_k + h * b1 * f(Y_1)
+
+#     return implicit_1stage_nd_rk
+
+
+def Implicit_nStage_nd_RK_method_generator_bruteforce(
+    A_matrix, b_vector, tolerance=1e-5, maxiters=100
+):
+    b_vec = enforce_1d(b_vector)
+    stages = len(b_vector)
+    assert A_matrix.shape == (stages, stages)
+
+    def implicit_nstage_nd_rk(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        y_k = enforce_1d(y_k)
+        dim = len(y_k)
+
+        y_k_stacked = np.tile(y_k, stages)
+
+        def g_stacked(x):
+            g_sd = np.zeros(stages * dim)
+            for i in range(stages):
+                g_i = np.zeros(dim)
+                g_i += y_k - x[i * dim : (i + 1) * dim]
+                for b in range(stages):
+                    Y_b = x[b * dim : (b + 1) * dim]
+                    g_i += h * A_matrix[i, b] * f(Y_b)
+
+                g_sd[i * dim : (i + 1) * dim] = g_i
+            return g_sd
+
+        Y_stacked = newtons_method_approxnd(g_stacked, y_k_stacked, tolerance, maxiters)
+
+        result = np.zeros(dim)
+
+        for i in range(stages):
+            result += b_vec[i] * h * f(Y_stacked[i * dim : (i + 1) * dim])
+        result += y_k
+
+        return result
+
+    return implicit_nstage_nd_rk
+
+
+# we have
+
+# Y_1 = y_n + h * ( (a11) * f(Y_1) + (a12) * f(Y_2) + ... (a1s) * f(Y_s) )
+# Y_2 = y_n +  h * ( (a21) * f(Y_1) + (a22) * f(Y_2) + ... (a2s) * f(Y_s) )
+# ...
+# Y_s = y_n +  h * ( (as1) * f(Y_1) + (as2) * f(Y_2) + ... (ass) * f(Y_s) )
+
+# where each equation is a vector equation (f and Y_i and y_n are vectors)
+
+# if we define the K matrix in the following way:
+
+#  [f(Y_1), f(Y_2), ...]^T
+
+#  but f and Y_i are vectors so that turns into (K is s x d matrix)
+
+# [ f1(Y_1), f2(Y_1), ... fd(Y_1)]
+# [ f1(Y_2), f2(Y_2), ... fd(Y_2)]
+# [ ...                                        ]
+# [ f1(Y_s) f2(Y_s), ... fd(Y_s) ]
+
+# (A is s x s matrix)
+
+# (s x s, s x d -> s x d)
+
+# then A @ K =
+# [ a11 f1(Y_1) + a12 f1(Y_2) + ..., a11 f2(Y_1) + a12 f2(Y_2) + ..., ..., a11 fd(Y_1) + a12 fd(Y_2) + ...]
+# [...]
+# ...
+# [...]
+
+# And then the Y matrix is (s x d)
+
+# [Y_1-1, Y_1-2, ..., Y_1-d]
+# [Y_2-1, Y_2-2, ..., Y_2-d]
+# ...
+# [Y_s-1, Y_s-2, ..., Y_s-d]
+
+# then we define the y_n matrix as
+
+# [yn-1, yn-2, ... yn-d]
+# ... (s times)
+# [yn-1, yn-2, ... yn-d]
+
+# so we can write:
+
+# Y = yn + h * A @ K
+# 0 = h * A @ K + yn - Y
+
+# with:
+
+# A: s x s
+# K: s x d
+# Y: s x d
+# f: d
+# yn: d expanded into s x d
+
+# in index form
+# A_ij = aij
+# Y_ij = Y_i-j
+# K_ij = fj(Y_i)
+# yn_ij = yn-j
+
+# and then our equation is
+
+# Y_ij = yn_ij + h * A_ib * K_bj
+
+# <-> Y_i-j = yn-j + h * aib * fj(Y_b)
+
+# <->  h * aib * fj(Y_b) + yn-j - Y_i-j = 0
+
+# [1]
+
+# now define g_ij = h * aib * fj(Y_b) + yn-j - Y_i-j
+
+# and now let's take the derivative wrt the 2-d y variable, del g_ij / del Y_k-l
+
+# let's go component by component taking advantage of linearity:
+# del Y_i-j / del Y_k-l = delta_ik delta _jl
+# del yn-j / del Y_k-l = 0
+# del  h * aib * fj(Y_b) / del Y_k-l =   h * aib * del fj(Y_b) / del Y_k-l
+
+# now let us use the product rule on del fj(Y_b) / del Y_k-l
+
+# ---
+# with x vector, f scalar:
+
+# del f(g(x)) / del xi = del f(g(x))/ del gj(x) * del gj(x) / del xi
+
+# = grad_g f(g(x)) . del g(x) / del xi
+
+# for our case g(x) = [x-1, x-2, x-3, ... x-d] = x
+
+# so we get grad_f(x) . del x / del xi
+# ---
+
+# applying that, we get
+
+# del fj(Y_b) / del Y_k-l = grad fj(Y_b) . del Y_b / del Y_k-l
+
+# del Y_b / del Y_k-l = delta_bk * e_l
+# (because del Y_b / del_Y_k-l is 0 if b !=k which gives the delta_bk, and if they are the same, then you get [0,...,0,1,0,...,0] where the 1 is at the l-th index, i.e. e_l
+
+# so del fj(Y_b) / del Y_k-l = grad fj(Y_b) . (delta_bk * e_l) = (delta_bk * grad fj(Y_b)) . e_l
+
+# but grad fj(Y_b) = [del fj / del x1, del fj / del x2, ...], so e_l . grad fj(Y_b) = del fj / del xl (Y_b) (where xl is just the l-th argument of fi)
+
+# so we get
+
+# del fj(Y_b) / del Y_k-l = delta_bk * del fj / del xl (Y_b)
+
+# so thus we get
+
+# del g_ij / del Y_k-l =  h * aib * delta_bk * del fj / del xl (Y_b) - delta_ik delta _jl = h * aik * del fj / del xl (Y_b) - delta_ik delta _jl
+
+# and for checking we can see 4 free indices on each term (i,k,j,l)
+
+# for a fixed ik, we see that this gives us a Jacobian matrix of f in j and l evaluated at Y_b, possibly minus the identity matrix if i = k
+
+# notice that ik are the 'stage indices' and 'jl' are the 'dimensional indices'
+
+# Intuitively we also can see that this g'_ikjl object is something that if you 'matrix dot' it with a matrix (2 index object, where we contract over both indices), gives out a matrix (2 remaining indices)
+
+# Now we just need to use our calculation of g' to write g as a linear approximation g(x) ~= g(x0) + g'(x0) (x-x0)
+
+# g_ij = h * aib * fj(Y_b) + yn-j - Y_i-j
+# g_i = h * (sum_b=1^s a_ib f(Y_b)) + yn - Y_i
+
+# (where a_ib = aib but is clearer looking)
+
+# now there's a derivation you can do with the frechet derivative but you can kind of intuitively see that we can write it like this:
+
+# g_stacked(Y) ~= g_stacked(Y_b) + Dg(Y_b) delta Y_stacked
+
+# where g_stacked is [g_1, g_2, g_3,...g_s]
+# and Y_stacked is [Y_1-1, Y_1-2,...Y_1-d, Y_2-1, Y_2-2, ... Y_s-1, ... Y_s-d]
+
+# [1]: we can check this is correct by looking at this:
+
+# A @ K =
+# [ a11 f1(Y_1) + a12 f1(Y_2) + ..., a11 f2(Y_1) + a12 f2(Y_2) + ..., ..., a11 fd(Y_1) + a12 fd(Y_2) + ...]
+# [...]
+# ...
+# [...]
+
+# and seeing how (A @ K)_ij is indeed A_ib * K_bj
+
+
+def Implicit_nStage_nd_RK_method_generator_semi_analytical(A_matrix, b_vector):
+    # TODO
+    pass
