@@ -698,7 +698,7 @@ def Implicit_nStage_nd_RK_method_generator_bruteforce(
 
 # now there's a derivation you can do with the frechet derivative but you can kind of intuitively see that we can write it like this:
 
-# g_stacked(Y) ~= g_stacked(Y_b) + Dg(Y_b) delta Y_stacked
+# g_stacked(Y) ~= g_stacked(Y_b) + g'_block(Y_b) delta Y_stacked
 
 # where g_stacked is [g_1, g_2, g_3,...g_s]
 # and Y_stacked is [Y_1-1, Y_1-2,...Y_1-d, Y_2-1, Y_2-2, ... Y_s-1, ... Y_s-d]
@@ -714,6 +714,104 @@ def Implicit_nStage_nd_RK_method_generator_bruteforce(
 # and seeing how (A @ K)_ij is indeed A_ib * K_bj
 
 
-def Implicit_nStage_nd_RK_method_generator_semi_analytical(A_matrix, b_vector):
-    # TODO
-    pass
+# del g_ij / del Y_k-l =  h * aib * delta_bk * del fj / del xl (Y_b) - delta_ik delta_jl
+# = h * aik * del fj / del xl (Y_k) - delta_ik delta_jl
+# for a fixed ik, we see that this gives us a Jacobian matrix of f in j and l evaluated at Y_b, possibly minus the identity matrix if i = k
+# g_i = h * (sum_b=1^s a_ib f(Y_b)) + yn - Y_i
+# we need to solve
+#  g'_block(Y) delta Y_stacked = -g_stacked(Y)
+# but to do that we need to construct g'_block, and g_stacked
+
+
+def newtons_method_approx_ns_nd_rk_opt(
+    A_matrix, h, the_function, initial_guess, tolerance=1e-5, maxiters=100, yn=None
+):
+    xn = enforce_1d(initial_guess)
+    # note that xn is in the stacked format:
+    # [Y_1-1, Y_1-2, ..., Y_1-d, Y_2-1, ..., Y_2-d, ..., Y_s-1, ... Y_s-d]
+    # Usually our initial guess is yn
+    if yn is None:
+        yn = xn.copy()
+    s_times_d = len(xn)  # dim is the number of stages now
+    stages = A_matrix.shape[0]
+    dim = int(s_times_d // stages)
+
+    # def stex(arr, stage):
+    #     return arr[stage * dim, (stage + 1) * dim]
+    iters = 0
+    # literally just evaluating f at each stage value and stacking it up
+    thefunc_stacked = np.ravel(
+        np.array([the_function(xn[p * dim : (p + 1) * dim]) for p in range(stages)])
+    )
+    # g_i = h * (sum_b=1^s a_ib f(Y_b)) + yn - Y_i
+    g_stacked = yn - xn
+    for m in range(stages):
+        for b in range(stages):
+            g_stacked[m * dim : (m + 1) * dim] += (
+                h * A_matrix[m, b] * thefunc_stacked[b * dim : (b + 1) * dim]
+            )
+    while np.linalg.norm(g_stacked) >= tolerance and iters < maxiters:
+        iters += 1
+        s = (10 ** (-8)) * (1 + np.abs(xn))  # size scaling
+        gprime_block = -1 * np.identity(s_times_d, dtype=float)
+        # we subtract the identity matrix at the end so might as well do it at the start
+        for k in range(stages):
+            subJac_f_k = np.zeros((dim, dim))
+            # We want to calculate J_f (Y_k)
+            Y_k = xn[k * dim : (k + 1) * dim]
+            # all this stuff with k * dim : (k + 1) * dim is just extracting the k-th stage
+            # out of the stacked version
+            thefunc = thefunc_stacked[k * dim : (k + 1) * dim]
+            for d in range(dim):
+                # this is techinically the j-l indices
+                e_d = np.zeros(dim)
+                e_d[d] = s[(k * dim) + d]
+                the_deriv = (the_function(Y_k + e_d) - thefunc) / s[(k * dim) + d]
+                subJac_f_k[:, d] = the_deriv
+            for i in range(stages):
+                # finally we construct the overall g'_block matrix
+                gprime_block[i * dim : (i + 1) * dim, k * dim : (k + 1) * dim] += (
+                    h * A_matrix[i, k] * subJac_f_k
+                )
+        #  g'_block(Y) delta Y_stacked = -g_stacked(Y)
+        deltay = np.linalg.solve(gprime_block, -g_stacked)
+        xn = deltay + xn
+
+        # recalc f and g with our new xn
+        thefunc_stacked = np.ravel(
+            np.array([the_function(xn[p * dim : (p + 1) * dim]) for p in range(stages)])
+        )
+        g_stacked = yn - xn
+        for m in range(stages):
+            for b in range(stages):
+                g_stacked[m * dim : (m + 1) * dim] += (
+                    h * A_matrix[m, b] * thefunc_stacked[b * dim : (b + 1) * dim]
+                )
+    return xn
+
+
+def Implicit_nStage_nd_RK_method_generator_semi_analytical(
+    A_matrix, b_vector, tolerance=1e-5, maxiters=100
+):
+    b_vec = enforce_1d(b_vector)
+    stages = len(b_vector)
+    assert A_matrix.shape == (stages, stages)
+
+    def implicit_nstage_nd_rk_opt(y_k, h: np.floating, f: ODEFunc) -> npt.NDArray:
+        yn = enforce_1d(y_k)
+        yn_stacked = np.tile(yn, stages)
+        dim = len(yn)
+        #
+        stage_values = newtons_method_approx_ns_nd_rk_opt(
+            A_matrix, h, f, yn_stacked, tolerance, maxiters, yn=yn_stacked
+        )
+        # in the form [Y_1-1, Y_1-2, ..., Y_1-d, Y_2-1, ..., Y_2-d, ..., Y_s-1, ... Y_s-d]
+        stage_values = stage_values.reshape(stages, dim)
+        # now stage_values[0] = [Y_1-1, Y_1-2, ... Y_1-d] and so on
+        f_stage_values = np.array([f(stage_values[i]) for i in range(stages)])
+        # now f_stage_values[0] = [f1(Y_1-1), f2(Y_1-2), ... fd(Y_1-d)] <-> f(Y_1) and so on
+        return yn + h * b_vec @ f_stage_values
+        # yn + h * [b-1 * f(Y_1-1) + b-2 * f(Y_2-1) + ... b-s * f(Y_s-1), b-1 * f(Y_1-2) + b-2 * f(Y_2-2) + ..., ]
+        # <-> yn + h * (b1 * f(Y_1) + b_2 * f(Y_2) + ...)
+
+    return implicit_nstage_nd_rk_opt
