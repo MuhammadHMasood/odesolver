@@ -107,6 +107,40 @@ def f_double_pendulum_v1(y) -> npt.NDArray:
     return result
 
 
+from solver import np, npt
+from numpy import sin, cos
+
+a = 2.0  # rod length
+g = 10.0  # gravitational acceleration
+
+
+def f_double_pendulum_v2(y) -> npt.NDArray:
+    """Double pendulum (two identical slender rods).
+
+    State y = [t, theta=C, phi=D, theta_dot=A, phi_dot=B]
+    Returns dy/dt = [1, Cdot, Ddot, Adot, Bdot]
+    """
+    t, C, D, A, B = y
+
+    Δ = C - D
+    s = sin(Δ)
+    c = cos(Δ)
+
+    # Mass matrix M * [Adot, Bdot]^T = rhs
+    M = np.array([[4.0 / 3.0, 0.5 * c], [0.5 * c, 1.0 / 3.0]], dtype=float)
+    rhs = np.array(
+        [
+            -0.5 * (B**2) * s - 1.5 * (g / a) * sin(C),
+            0.5 * (A**2) * s - 0.5 * (g / a) * sin(D),
+        ],
+        dtype=float,
+    )
+
+    Adot, Bdot = np.linalg.solve(M, rhs)
+
+    return np.array([1.0, A, B, Adot, Bdot], dtype=float)
+
+
 def logistic_solution(t, y0):
     """Analytical solution for dy/dt = y * (1 - y)"""
     A = (1 - y0) / y0

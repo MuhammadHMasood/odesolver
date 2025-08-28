@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import numpy as np
 import itertools
-from functions import f_double_pendulum_v0
+from functions import f_double_pendulum_v0, f_double_pendulum_v1, f_double_pendulum_v2
 from solver import ODESolve, ODESolve_oneiter
 
 
@@ -74,7 +74,7 @@ def animate_double_pendulum_infinite(
     def update(frame):
         for i in range(num_methods):
             y_next = ODESolve_oneiter(
-                h, y_ns[i][-1], f_double_pendulum_v0, solver_methods[i]
+                h, y_ns[i][-1], f_double_pendulum_v1, solver_methods[i]
             )
             y_ns[i].append(y_next)
             energies[i].append(dp_energy(mass, gravity, length, y_next[1:]))
