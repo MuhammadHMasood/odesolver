@@ -4,8 +4,8 @@ import numpy.typing as npt
 from solver import enforce_1d, is_strictly_lower_triangular, ODEFunc
 
 
-def ExplicitRK_method_generator(A_matrix, b_vector):
-    b_vector = enforce_1d(b_vector)
+def ExplicitRK_method_generator(A_matrix, b_vec):
+    b_vector = enforce_1d(b_vec)
     stage = len(b_vector)
     if not is_strictly_lower_triangular(A_matrix, stage):
         raise ValueError("A has wrong shape")
